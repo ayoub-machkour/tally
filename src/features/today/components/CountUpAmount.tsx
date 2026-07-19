@@ -9,8 +9,6 @@ import Animated, {
 import { TextInput, StyleSheet, type TextStyle } from 'react-native';
 import { typography, animation } from '@/ui/tokens';
 
-// AnimatedTextInput works reliably on Android New Architecture (RN 0.86+)
-// where the `text` prop on AnimatedText no longer functions correctly.
 const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 interface Props {
@@ -20,30 +18,59 @@ interface Props {
   duration?: number;
 }
 
+function fmt(value: number, prefix: string): string {
+  return `${prefix}${value.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+}
+
 export function CountUpAmount({
   value,
   prefix = '',
   style,
   duration = animation.countUp,
 }: Props): React.ReactElement {
-  const animatedValue = useSharedValue(0);
   const reducedMotion = useReducedMotion();
 
+  // ── Instant path ────────────────────────────────────────────────────────────
+  // When duration=0 or reducedMotion: render a plain React-controlled TextInput.
+  // React updates it on the same render frame — zero Reanimated bridge overhead.
+  if (reducedMotion || duration === 0) {
+    return (
+      <TextInput
+        style={[styles.base, style]}
+        value={fmt(value, prefix)}
+        editable={false}
+        underlineColorAndroid="transparent"
+        caretHidden
+        selectTextOnFocus={false}
+      />
+    );
+  }
+
+  // ── Animated path (count-up) ────────────────────────────────────────────────
+  return <CountUpAnimated value={value} prefix={prefix} style={style} duration={duration} />;
+}
+
+// Separated so hooks are never called on the instant path (avoids hook-order issues)
+function CountUpAnimated({
+  value,
+  prefix,
+  style,
+  duration,
+}: Required<Props>): React.ReactElement {
+  const animatedValue = useSharedValue(0);
+
   useEffect(() => {
-    if (reducedMotion || duration === 0) {
-      animatedValue.value = value;
-    } else {
-      animatedValue.value = withTiming(value, {
-        duration,
-        easing: Easing.out(Easing.cubic),
-      });
-    }
-  }, [value, duration, reducedMotion, animatedValue]);
+    animatedValue.value = withTiming(value, {
+      duration,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [value, duration, animatedValue]);
 
   const animatedProps = useAnimatedProps(() => {
     const displayed = animatedValue.value;
-    const text = `${prefix}${displayed.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
-    return { value: text };
+    return {
+      value: `${prefix}${displayed.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`,
+    };
   });
 
   return (
