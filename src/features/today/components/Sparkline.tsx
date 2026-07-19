@@ -20,11 +20,15 @@ interface Props {
 }
 
 function buildLinePath(data: number[], w: number, h: number, progress: number): string {
+  'worklet';
   if (data.length === 0) return '';
-  const maxVal = Math.max(...data, 1);
+  let maxVal = 1;
+  for (let i = 0; i < data.length; i++) {
+    if (data[i] > maxVal) maxVal = data[i];
+  }
   const minVal = 0;
   const range = maxVal - minVal || 1;
-  const stepX = w / Math.max(data.length - 1, 1);
+  const stepX = w / (data.length > 1 ? data.length - 1 : 1);
   const pad = 4;
 
   const points = data.map((v, i) => ({
