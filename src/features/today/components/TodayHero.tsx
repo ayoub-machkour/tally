@@ -6,9 +6,8 @@ import { CountUpAmount } from './CountUpAmount';
 import { useSelectedDateTotal, useMonthProgress, useSparklineData } from '@/store/selectors';
 import { useExpenseStore } from '@/store/expenseStore';
 import { formatCurrencyShort } from '@/lib/currency';
-import { colors, typography, spacing, shadows } from '@/ui/tokens';
+import { colors, typography, spacing } from '@/ui/tokens';
 
-// Lerp between two hex colors by t (0→1)
 function lerpColor(from: string, to: string, t: number): string {
   const f = [parseInt(from.slice(1, 3), 16), parseInt(from.slice(3, 5), 16), parseInt(from.slice(5, 7), 16)];
   const e = [parseInt(to.slice(1, 3), 16), parseInt(to.slice(3, 5), 16), parseInt(to.slice(5, 7), 16)];
@@ -20,100 +19,124 @@ function lerpColor(from: string, to: string, t: number): string {
   );
 }
 
-// ─── Mini bar chart ───────────────────────────────────────────────────────────
+// ─── Mini sparkline (dark bars — readable on light glass) ─────────────────────
 function MiniBarChart({ data }: { data: number[] }): React.ReactElement {
   let maxVal = 1;
-  for (let i = 0; i < data.length; i++) {
-    if (data[i] > maxVal) maxVal = data[i];
-  }
-  const BAR_H = 44;
+  for (let i = 0; i < data.length; i++) if (data[i] > maxVal) maxVal = data[i];
+  const BAR_H = 36;
   return (
-    <View style={miniStyles.container}>
+    <View style={mini.wrap}>
       {data.map((v, i) => {
         const isLatest = i === data.length - 1;
-        const h = Math.max(4, Math.round((v / maxVal) * BAR_H));
-        const opacity = isLatest ? 1 : 0.25 + (v / maxVal) * 0.5;
+        const h = Math.max(3, Math.round((v / maxVal) * BAR_H));
         return (
-          <View key={i} style={[miniStyles.bar, { height: h, opacity }]} />
+          <View
+            key={i}
+            style={[
+              mini.bar,
+              {
+                height: h,
+                backgroundColor: isLatest ? colors.accent : colors.ink,
+                opacity: isLatest ? 0.9 : 0.18 + (v / maxVal) * 0.35,
+              },
+            ]}
+          />
         );
       })}
     </View>
   );
 }
-
-const miniStyles = StyleSheet.create({
-  container: { flexDirection: 'row', alignItems: 'flex-end', height: 44, gap: 4 },
-  bar: { width: 7, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.7)' },
+const mini = StyleSheet.create({
+  wrap: { flexDirection: 'row', alignItems: 'flex-end', height: 36, gap: 3 },
+  bar:  { width: 6, borderRadius: 3 },
 });
 
-// ─── Hero card ─────────────────────────────────────────────────────────────────
+// ─── Hero card ────────────────────────────────────────────────────────────────
 export function TodayHero(): React.ReactElement {
-  const currency = useExpenseStore((s) => s.settings.currency);
+  const currency   = useExpenseStore((s) => s.settings.currency);
   const todayTotal = useSelectedDateTotal();
   const { total: monthTotal, progress, comfortLine } = useMonthProgress();
-  const sparkData = useSparklineData(7);
+  const sparkData  = useSparklineData(7);
 
   const progressWidth = Math.min(progress, 100);
   const t = Math.min(1, Math.max(0, progress / 100));
 
-  // Budget ring: violet → red (this is the ONLY thing that changes with budget %)
-  const ringColor = lerpColor('#7C5CE8', '#DC2626', t);
-  // Progress bar gradient end color
-  const barEndColor = lerpColor('#9B80E8', '#DC2626', t);
+  // Glow ring shifts violet → red as budget fills
+  const glowColor = lerpColor('#7C5CE8', '#DC2626', t);
+  // Very subtle red wash builds up inside glass at high budget
+  const budgetWash = t * 0.07;
 
   return (
     <View style={styles.container}>
-      {/* Budget ring wrapper — glows violet→red */}
-      <View style={[styles.ring, { borderColor: ringColor, shadowColor: ringColor }]}>
 
-        {/* Glass card */}
-        <View style={styles.card}>
+      {/*
+        ── Outer glow shadow (budget-reactive colour) ──────────────────────────
+        The shadow IS the liquid glass "glow" effect — it picks up the budget %.
+        On iOS this renders as a soft coloured halo. Android gets elevation only.
+      */}
+      <View style={[styles.glow, { shadowColor: glowColor }]}>
 
-          {/* ── Glass layers (stacked, all absolute) ── */}
-          {/* 1. Deep base gradient */}
+        {/*
+          ── Glass card ─────────────────────────────────────────────────────────
+          Light, semi-transparent white surface.
+          True liquid glass: the cream paper (#F7F5F1) shows faintly through it,
+          giving that warm refracted look.
+        */}
+        <View style={styles.glass}>
+
+          {/* Layer 1 — white glass base */}
           <LinearGradient
-            colors={['#13102A', '#0A0814']}
+            colors={['rgba(255,255,255,0.82)', 'rgba(255,255,255,0.64)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0.4, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
 
-          {/* 2. Inner glass sheen — light catches the top-left */}
+          {/* Layer 2 — diagonal light refraction (top-left bright, bottom-right dim) */}
           <LinearGradient
-            colors={['rgba(255,255,255,0.12)', 'rgba(255,255,255,0)']}
+            colors={['rgba(255,255,255,0.55)', 'rgba(255,255,255,0)']}
             start={{ x: 0, y: 0 }}
-            end={{ x: 0.6, y: 1 }}
+            end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
 
-          {/* 3. Top specular line — simulates the glass rim */}
-          <View style={styles.specularTop} />
+          {/* Layer 3 — budget tint: clear → barely-there red wash */}
+          {budgetWash > 0.005 && (
+            <View
+              style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(220,38,38,${budgetWash})` }]}
+            />
+          )}
 
-          {/* 4. Left specular edge */}
+          {/* Layer 4 — top specular line (brightest: where light hits the rim) */}
+          <View style={styles.specTop} />
+
+          {/* Layer 5 — left specular edge (fades down) */}
           <LinearGradient
-            colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0)']}
+            colors={['rgba(255,255,255,0.8)', 'rgba(255,255,255,0)']}
             start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.specularLeft}
+            end={{ x: 0, y: 1 }}
+            style={styles.specLeft}
           />
 
-          {/* ── Content ── */}
-          <View style={styles.cardBody}>
-            <View style={styles.leftCol}>
-              <Animated.Text style={styles.spentLabel}>SPENT TODAY</Animated.Text>
+          {/* ── Card content ────────────────────────────────────────────────── */}
+          <View style={styles.body}>
+            <View style={styles.left}>
+              <Animated.Text style={styles.eyebrow}>SPENT TODAY</Animated.Text>
               <CountUpAmount
                 value={todayTotal}
                 prefix={currency}
-                style={styles.heroAmount}
+                style={styles.amount}
                 duration={0}
               />
-              <Animated.Text style={styles.comfortText}>
+              <Animated.Text style={styles.comfort}>
                 {formatCurrencyShort(monthTotal, currency)} of{' '}
                 {formatCurrencyShort(comfortLine, currency)} comfort
               </Animated.Text>
             </View>
 
-            <View style={styles.rightCol}>
+            <View style={styles.right}>
               <MiniBarChart data={sparkData} />
-              <Animated.Text style={styles.last7Label}>LAST 7 DAYS</Animated.Text>
+              <Animated.Text style={styles.last7}>LAST 7 DAYS</Animated.Text>
             </View>
           </View>
 
@@ -121,21 +144,22 @@ export function TodayHero(): React.ReactElement {
           <View style={styles.progressArea}>
             <View style={styles.progressRow}>
               <Animated.Text style={styles.progressLabel}>This month</Animated.Text>
-              <Animated.Text style={[styles.progressLabel, { color: barEndColor }]}>
+              <Animated.Text style={[styles.progressLabel, t > 0.6 && { color: glowColor }]}>
                 {Math.round(progressWidth)}%
               </Animated.Text>
             </View>
-            <View style={styles.progressTrack}>
+            <View style={styles.track}>
               <LinearGradient
-                colors={[colors.accentDim, barEndColor]}
+                colors={[colors.accentDim, glowColor]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={[styles.progressFill, { width: `${progressWidth}%` as `${number}%` }]}
+                style={[styles.fill, { width: `${progressWidth}%` as `${number}%` }]}
               />
             </View>
           </View>
-        </View>
-      </View>
+
+        </View>{/* /glass */}
+      </View>{/* /glow */}
     </View>
   );
 }
@@ -147,44 +171,46 @@ const styles = StyleSheet.create({
     paddingBottom: spacing['2'],
   },
 
-  // Budget-reactive glowing ring around the card
-  ring: {
-    borderRadius: 26,
-    borderWidth: 1.5,
-    // shadowColor set dynamically
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.55,
-    shadowRadius: 16,
+  // Outer shell — carries the coloured glow shadow
+  glow: {
+    borderRadius: 28,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
     elevation: 10,
   },
 
-  // Liquid glass card
-  card: {
-    borderRadius: 24,
+  // Liquid glass surface
+  glass: {
+    borderRadius: 26,
     overflow: 'hidden',
-    // Inner rim: subtle white border for the glass edge feel
+    // Hair-thin bright white border = glass edge catching light
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.09)',
+    borderColor: 'rgba(255,255,255,0.92)',
   },
 
-  // Specular highlights
-  specularTop: {
+  // Top specular — single bright pixel where light hits the glass rim
+  specTop: {
     position: 'absolute',
     top: 0,
-    left: 0,
-    right: 0,
+    left: 24,
+    right: 24,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: '#FFFFFF',
+    opacity: 0.9,
   },
-  specularLeft: {
+
+  // Left specular edge
+  specLeft: {
     position: 'absolute',
-    top: 0,
+    top: 12,
+    bottom: 12,
     left: 0,
-    bottom: 0,
     width: 1,
   },
 
-  cardBody: {
+  // Content
+  body: {
     flexDirection: 'row',
     paddingHorizontal: spacing['5'],
     paddingTop: spacing['5'],
@@ -192,37 +218,32 @@ const styles = StyleSheet.create({
     gap: spacing['4'],
     alignItems: 'flex-end',
   },
-  leftCol: { flex: 1, gap: spacing['1'] },
-  rightCol: {
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: spacing['2'],
-    paddingBottom: 2,
-  },
+  left:  { flex: 1, gap: spacing['1'] },
+  right: { alignItems: 'center', justifyContent: 'flex-end', gap: spacing['2'], paddingBottom: 2 },
 
-  spentLabel: {
+  eyebrow: {
     fontFamily: typography.sansMedium,
     fontSize: typography.size.xs,
-    color: 'rgba(255,255,255,0.45)',
+    color: colors.muted,
     letterSpacing: 1,
   },
-  heroAmount: {
+  amount: {
     fontFamily: typography.serifFamily,
     fontSize: 52,
-    color: '#FFFFFF',
+    color: colors.ink,
     letterSpacing: -2,
     fontVariant: ['tabular-nums'],
     lineHeight: 52 * 1.05,
   },
-  comfortText: {
+  comfort: {
     fontFamily: typography.sansFamily,
     fontSize: typography.size.xs,
-    color: 'rgba(255,255,255,0.38)',
+    color: colors.muted,
   },
-  last7Label: {
+  last7: {
     fontFamily: typography.sansMedium,
     fontSize: 9,
-    color: 'rgba(255,255,255,0.35)',
+    color: colors.muted,
     letterSpacing: 0.8,
   },
 
@@ -231,20 +252,20 @@ const styles = StyleSheet.create({
     paddingBottom: spacing['5'],
     gap: spacing['2'],
   },
-  progressRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  progressRow:  { flexDirection: 'row', justifyContent: 'space-between' },
   progressLabel: {
     fontFamily: typography.sansMedium,
     fontSize: typography.size.xs,
-    color: 'rgba(255,255,255,0.45)',
+    color: colors.muted,
     fontVariant: ['tabular-nums'],
   },
-  progressTrack: {
+  track: {
     height: 3,
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(0,0,0,0.07)',
     borderRadius: 2,
     overflow: 'hidden',
   },
-  progressFill: {
+  fill: {
     height: '100%',
     borderRadius: 2,
   },
