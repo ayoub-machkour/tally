@@ -1,61 +1,32 @@
-import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, Pressable, Alert } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSpring,
-  useReducedMotion,
-} from 'react-native-reanimated';
+import React, { useRef, useCallback } from 'react';
+import { View, StyleSheet, Alert, Text } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import type { Expense } from '@/domain/types';
 import { getCategoryMeta, CATEGORY_COLORS_HEX } from '@/domain/categories';
 import { useExpenseStore } from '@/store/expenseStore';
 import { formatCurrency } from '@/lib/currency';
-import { colors, typography, spacing, radii, animation } from '@/ui/tokens';
+import { colors, typography, spacing, radii } from '@/ui/tokens';
 
 interface Props {
   expense: Expense;
 }
 
 export function ExpenseRow({ expense }: Props): React.ReactElement {
-  const [expanded, setExpanded] = useState(false);
+  const swipeableRef = useRef<Swipeable>(null);
   const removeExpense = useExpenseStore((s) => s.removeExpense);
   const currency = useExpenseStore((s) => s.settings.currency);
-  const reducedMotion = useReducedMotion();
   const catMeta = getCategoryMeta(expense.category);
   const catColor = CATEGORY_COLORS_HEX[expense.category];
 
-  const deleteHeight = useSharedValue(0);
-  const deleteOpacity = useSharedValue(0);
-
-  const toggleExpand = useCallback(() => {
-    const next = !expanded;
-    setExpanded(next);
-    if (reducedMotion) {
-      deleteHeight.value = next ? 44 : 0;
-      deleteOpacity.value = next ? 1 : 0;
-    } else {
-      deleteHeight.value = withSpring(next ? 48 : 0, { damping: 18, stiffness: 220 });
-      deleteOpacity.value = withTiming(next ? 1 : 0, { duration: animation.fast });
-    }
-    if (next) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => null);
-    }
-  }, [expanded, reducedMotion, deleteHeight, deleteOpacity]);
-
-  const deleteRowStyle = useAnimatedStyle(() => ({
-    height: deleteHeight.value,
-    opacity: deleteOpacity.value,
-    overflow: 'hidden',
-  }));
-
   const handleDelete = useCallback(() => {
+    swipeableRef.current?.close();
     Alert.alert(
       'Delete expense',
       `Delete ${formatCurrency(expense.amount, currency)} from ${catMeta.label}?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel', onPress: () => swipeableRef.current?.close() },
         {
           text: 'Delete',
           style: 'destructive',
@@ -65,6 +36,17 @@ export function ExpenseRow({ expense }: Props): React.ReactElement {
     );
   }, [expense, catMeta.label, currency, removeExpense]);
 
+  const handleSwipeOpen = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => null);
+  }, []);
+
+  const renderRightActions = useCallback(() => (
+    <View style={styles.deleteAction}>
+      <Text style={styles.trashIcon}>🗑</Text>
+      <Text style={styles.deleteLabel}>Delete</Text>
+    </View>
+  ), []);
+
   const hour = new Date(expense.createdAt).toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
@@ -72,67 +54,59 @@ export function ExpenseRow({ expense }: Props): React.ReactElement {
   });
 
   return (
-    <View style={styles.wrapper}>
-      <Pressable
-        style={styles.row}
-        onPress={toggleExpand}
-        accessibilityRole="button"
-        accessibilityLabel={`${catMeta.label} ${expense.note || ''} ${formatCurrency(expense.amount, currency)} at ${hour}. Tap to expand.`}
-        accessibilityHint="Double tap to show delete option"
+    <View style={styles.outerWrapper}>
+      <Swipeable
+        ref={swipeableRef}
+        renderRightActions={renderRightActions}
+        onSwipeableOpen={handleSwipeOpen}
+        onSwipeableRightOpen={handleDelete}
+        overshootRight={false}
+        friction={2}
+        rightThreshold={60}
+        containerStyle={styles.swipeContainer}
       >
-        {/* Category dot */}
-        <View style={[styles.catDot, { backgroundColor: catColor }]}>
-          <Animated.Text style={styles.catEmoji}>{catMeta.emoji}</Animated.Text>
-        </View>
+        <View style={styles.row}>
+          {/* Category dot */}
+          <View style={[styles.catDot, { backgroundColor: catColor }]}>
+            <Animated.Text style={styles.catEmoji}>{catMeta.emoji}</Animated.Text>
+          </View>
 
-        {/* Details */}
-        <View style={styles.details}>
-          <Animated.Text style={styles.categoryLabel} numberOfLines={1}>
-            {catMeta.label}
-          </Animated.Text>
-          {expense.note ? (
-            <Animated.Text style={styles.note} numberOfLines={1}>
-              {expense.note}
+          {/* Details */}
+          <View style={styles.details}>
+            <Animated.Text style={styles.categoryLabel} numberOfLines={1}>
+              {catMeta.label}
             </Animated.Text>
-          ) : null}
-        </View>
+            {expense.note ? (
+              <Animated.Text style={styles.note} numberOfLines={1}>
+                {expense.note}
+              </Animated.Text>
+            ) : null}
+          </View>
 
-        {/* Right */}
-        <View style={styles.right}>
-          <Animated.Text style={styles.amount}>
-            {formatCurrency(expense.amount, currency)}
-          </Animated.Text>
-          <Animated.Text style={styles.time}>{hour}</Animated.Text>
+          {/* Right */}
+          <View style={styles.right}>
+            <Animated.Text style={styles.amount}>
+              {formatCurrency(expense.amount, currency)}
+            </Animated.Text>
+            <Animated.Text style={styles.time}>{hour}</Animated.Text>
+          </View>
         </View>
-      </Pressable>
-
-      {/* Delete reveal */}
-      <Animated.View style={deleteRowStyle}>
-        <Pressable
-          style={styles.deleteBtn}
-          onPress={handleDelete}
-          accessibilityRole="button"
-          accessibilityLabel={`Delete ${catMeta.label} expense`}
-        >
-          <Animated.Text style={styles.deleteBtnLabel}>Delete</Animated.Text>
-        </Pressable>
-      </Animated.View>
+      </Swipeable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
+  outerWrapper: {
     marginHorizontal: spacing['4'],
     marginBottom: spacing['2'],
-    backgroundColor: '#FFFFFF',
     borderRadius: radii.md,
     overflow: 'hidden',
-    shadowColor: '#17151F',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  swipeContainer: {
+    backgroundColor: '#FFFFFF',
   },
   row: {
     flexDirection: 'row',
@@ -141,6 +115,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing['4'],
     gap: spacing['3'],
     minHeight: 64,
+    backgroundColor: '#FFFFFF',
   },
   catDot: {
     width: 40,
@@ -186,19 +161,20 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontVariant: ['tabular-nums'],
   },
-  deleteBtn: {
-    marginHorizontal: spacing['5'],
-    marginBottom: spacing['2'],
+  // ── Swipe delete action ──────────────────────────────────────────────────────
+  deleteAction: {
+    width: 80,
     backgroundColor: colors.dangerBg,
-    borderRadius: radii.md,
-    paddingVertical: spacing['3'],
     alignItems: 'center',
-    minHeight: 44,
     justifyContent: 'center',
+    gap: 4,
   },
-  deleteBtnLabel: {
-    fontFamily: typography.sansSemiBold,
-    fontSize: typography.size.sm,
+  trashIcon: {
+    fontSize: 20,
+  },
+  deleteLabel: {
+    fontFamily: typography.sansMedium,
+    fontSize: typography.size.xs,
     color: colors.danger,
   },
 });

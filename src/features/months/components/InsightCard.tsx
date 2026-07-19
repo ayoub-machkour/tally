@@ -27,7 +27,6 @@ export function InsightCard({ emoji, title, value, subtitle }: Props): React.Rea
 
 const styles = StyleSheet.create({
   card: {
-    flex: 1,
     backgroundColor: colors.paper,
     borderRadius: radii.xl,
     padding: spacing['5'],

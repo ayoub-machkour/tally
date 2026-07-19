@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -15,14 +15,29 @@ import { colors, typography, spacing, radii } from '@/ui/tokens';
 const PILL_SIZE = 44;
 const PILL_GAP = 8;
 const ITEM_WIDTH = PILL_SIZE + PILL_GAP;
-const PADDING_START = spacing['4']; // 16px
+const PADDING_START = spacing['4']; // 16px padding at start
 
 export function DayScrubber(): React.ReactElement {
   const selectedDate = useExpenseStore((s) => s.selectedDate);
   const setSelectedDate = useExpenseStore((s) => s.setSelectedDate);
   const scrubData = useScrubberData();
   const scrollRef = useRef<ScrollView>(null);
+  const hasScrolled = useRef(false);
   const today = todayString();
+
+  // Scroll so today is at the left edge once scrubData is ready
+  useEffect(() => {
+    if (hasScrolled.current || scrubData.length === 0) return;
+    const idx = scrubData.findIndex((d) => d.date === today);
+    if (idx > 0) {
+      const timer = setTimeout(() => {
+        // x = idx * ITEM_WIDTH keeps the left padding visible before today's item
+        scrollRef.current?.scrollTo({ x: idx * ITEM_WIDTH, y: 0, animated: false });
+      }, 60);
+      hasScrolled.current = true;
+      return () => clearTimeout(timer);
+    }
+  }, [scrubData, today]);
 
   const handleSelect = useCallback(
     (date: string) => {
@@ -31,18 +46,6 @@ export function DayScrubber(): React.ReactElement {
     },
     [setSelectedDate],
   );
-
-  const handleLayout = useCallback(() => {
-    // Scroll so today is at the left edge of the viewport
-    const todayIndex = scrubData.findIndex((d) => d.date === today);
-    if (todayIndex > 0) {
-      scrollRef.current?.scrollTo({
-        x: todayIndex * ITEM_WIDTH,
-        y: 0,
-        animated: false,
-      });
-    }
-  }, [scrubData, today]);
 
   return (
     <View style={styles.container}>
@@ -53,12 +56,10 @@ export function DayScrubber(): React.ReactElement {
         contentContainerStyle={styles.scrollContent}
         snapToInterval={ITEM_WIDTH}
         decelerationRate="fast"
-        onLayout={handleLayout}
       >
         {scrubData.map((item) => {
           const isSelected = item.date === selectedDate;
           const isFuture = item.date > today;
-          const hasSpend = item.total > 0;
           const dayLabel = shortDayLabel(item.date);
           const dayNum = item.date.split('-')[2];
 
@@ -73,7 +74,7 @@ export function DayScrubber(): React.ReactElement {
               onPress={() => !isFuture && handleSelect(item.date)}
               disabled={isFuture}
               accessibilityRole="button"
-              accessibilityLabel={`${item.date}${hasSpend ? ` — ${item.total.toFixed(2)}` : ''}`}
+              accessibilityLabel={`${item.date}${item.total > 0 ? ` — ${item.total.toFixed(2)}` : ''}`}
               accessibilityState={{ selected: isSelected, disabled: isFuture }}
               hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
             >
@@ -98,21 +99,6 @@ export function DayScrubber(): React.ReactElement {
               >
                 {dayNum}
               </Animated.Text>
-
-              {/* Spend dot */}
-              {!isFuture && (
-                <View
-                  style={[
-                    styles.dot,
-                    hasSpend
-                      ? {
-                          backgroundColor: isSelected ? '#FFFFFF' : colors.accentDim,
-                          opacity: 0.8,
-                        }
-                      : styles.dotEmpty,
-                  ]}
-                />
-              )}
             </Pressable>
           );
         })}
@@ -138,7 +124,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.md,
-    gap: 3,
+    gap: 4,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: colors.line,
@@ -158,7 +144,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   dayLetterActive: {
-    color: 'rgba(255,255,255,0.65)',
+    color: 'rgba(255,255,255,0.6)',
   },
   dayLetterFuture: {
     color: colors.line,
@@ -174,16 +160,5 @@ const styles = StyleSheet.create({
   },
   dayNumFuture: {
     color: colors.line,
-  },
-  dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-  },
-  dotEmpty: {
-    width: 4,
-    height: 4,
-    backgroundColor: colors.line,
-    opacity: 0.5,
   },
 });

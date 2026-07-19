@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated from 'react-native-reanimated';
@@ -13,8 +13,9 @@ import { useMonthInsights } from '@/store/selectors';
 import { useExpenseStore } from '@/store/expenseStore';
 import { formatCurrencyShort, formatDeltaPercent } from '@/lib/currency';
 import { fullMonthYear, currentMonthString, previousMonth, nextMonth } from '@/lib/dates';
-import { getCategoryMeta } from '@/domain/categories';
+import { getCategoryMeta, CATEGORY_COLORS_HEX } from '@/domain/categories';
 import { colors, typography, spacing, radii, shadows } from '@/ui/tokens';
+import type { CategoryBreakdown } from '@/domain/types';
 
 const absoluteFillStyles = { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -25,10 +26,10 @@ export function MonthsScreen(): React.ReactElement {
   const setSelectedMonth = useExpenseStore((s) => s.setSelectedMonth);
   const currency = useExpenseStore((s) => s.settings.currency);
   const comfortLine = useExpenseStore((s) => s.settings.comfortLine);
+  const [selectedCategory, setSelectedCategory] = useState<CategoryBreakdown | null>(null);
 
   const currentMonth = currentMonthString();
   const canGoBack = selectedMonth > '2000-01';
-  // Limit: max 2 months back from today
   const twoMonthsAgo = (() => {
     const [y, m] = currentMonth.split('-').map(Number);
     const d = new Date(y, m - 3, 1);
@@ -56,7 +57,7 @@ export function MonthsScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 130 }}
         bounces
       >
         {/* ── Hero ── */}
@@ -122,6 +123,46 @@ export function MonthsScreen(): React.ReactElement {
               )}
             </View>
           </View>
+
+          {/* ── Category legend (interactive) ── */}
+          {insights.categoryBreakdown.length > 0 && (
+            <View style={styles.categoryLegend}>
+              {insights.categoryBreakdown.map((item) => {
+                const meta = getCategoryMeta(item.category);
+                const color = CATEGORY_COLORS_HEX[item.category];
+                const isSelected = selectedCategory?.category === item.category;
+                return (
+                  <Pressable
+                    key={item.category}
+                    style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
+                    onPress={() => setSelectedCategory(isSelected ? null : item)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${meta.label}: ${formatCurrencyShort(item.total, currency)}`}
+                  >
+                    <View style={[styles.categoryDot, { backgroundColor: color }]} />
+                    <Animated.Text style={[styles.categoryChipLabel, isSelected && styles.categoryChipLabelSelected]}>
+                      {meta.emoji} {meta.label}
+                    </Animated.Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Selected category info panel */}
+          {selectedCategory && (
+            <View style={styles.categoryInfo}>
+              <View style={[styles.categoryInfoDot, { backgroundColor: CATEGORY_COLORS_HEX[selectedCategory.category] }]} />
+              <View style={styles.categoryInfoText}>
+                <Animated.Text style={styles.categoryInfoName}>
+                  {getCategoryMeta(selectedCategory.category).label}
+                </Animated.Text>
+                <Animated.Text style={styles.categoryInfoAmount}>
+                  {formatCurrencyShort(selectedCategory.total, currency)} · {selectedCategory.percentage.toFixed(1)}%
+                </Animated.Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* ── Day-by-day bars ── */}
@@ -130,13 +171,14 @@ export function MonthsScreen(): React.ReactElement {
           <DayBars
             dailyTotals={insights.dailyTotals}
             peakDate={insights.peakDay?.date}
+            currency={currency}
           />
         </View>
 
         {/* ── Weekly rhythm ── */}
         <View style={styles.section}>
           <Animated.Text style={styles.sectionTitle}>Weekly rhythm</Animated.Text>
-          <WeeklyRhythm rhythm={insights.weeklyRhythm} />
+          <WeeklyRhythm rhythm={insights.weeklyRhythm} currency={currency} />
         </View>
 
         {/* ── Where it went ── */}
@@ -150,10 +192,10 @@ export function MonthsScreen(): React.ReactElement {
           </View>
         )}
 
-        {/* ── Insight cards ── */}
+        {/* ── Insight cards (vertical) ── */}
         <View style={styles.section}>
           <Animated.Text style={styles.sectionTitle}>Insights</Animated.Text>
-          <View style={styles.insightGrid}>
+          <View style={styles.insightList}>
             {topCatMeta && (
               <InsightCard
                 emoji={topCatMeta.emoji}
@@ -202,7 +244,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.paper,
   },
   hero: {
-    paddingBottom: spacing['8'],
+    paddingBottom: spacing['6'],
     overflow: 'hidden',
   },
   orb: {
@@ -276,6 +318,10 @@ const styles = StyleSheet.create({
     color: colors.heroText,
     letterSpacing: -1.5,
     fontVariant: ['tabular-nums'],
+    backgroundColor: 'transparent',
+    padding: 0,
+    margin: 0,
+    borderWidth: 0,
   },
   deltaRow: {
     flexDirection: 'row',
@@ -295,6 +341,74 @@ const styles = StyleSheet.create({
     fontSize: typography.size.xs,
     color: colors.heroMuted,
   },
+  // ── Category legend ────────────────────────────────────────────────────────
+  categoryLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing['2'],
+    paddingHorizontal: spacing['5'],
+    paddingTop: spacing['5'],
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing['2'],
+    paddingHorizontal: spacing['3'],
+    paddingVertical: spacing['2'],
+    borderRadius: radii.full,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  categoryChipSelected: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  categoryDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  categoryChipLabel: {
+    fontFamily: typography.sansMedium,
+    fontSize: typography.size.xs,
+    color: colors.heroMuted,
+  },
+  categoryChipLabelSelected: {
+    color: colors.heroText,
+  },
+  categoryInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing['3'],
+    marginHorizontal: spacing['5'],
+    marginTop: spacing['3'],
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: radii.lg,
+    padding: spacing['4'],
+  },
+  categoryInfoDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    flexShrink: 0,
+  },
+  categoryInfoText: {
+    flex: 1,
+    gap: 2,
+  },
+  categoryInfoName: {
+    fontFamily: typography.sansSemiBold,
+    fontSize: typography.size.sm,
+    color: colors.heroText,
+  },
+  categoryInfoAmount: {
+    fontFamily: typography.sansFamily,
+    fontSize: typography.size.xs,
+    color: colors.heroMuted,
+    fontVariant: ['tabular-nums'],
+  },
+  // ── Sections ──────────────────────────────────────────────────────────────
   section: {
     paddingHorizontal: spacing['5'],
     paddingVertical: spacing['5'],
@@ -308,9 +422,9 @@ const styles = StyleSheet.create({
     color: colors.ink,
     letterSpacing: -0.2,
   },
-  insightGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  // ── Insights (vertical list) ───────────────────────────────────────────────
+  insightList: {
+    flexDirection: 'column',
     gap: spacing['3'],
   },
   empty: {

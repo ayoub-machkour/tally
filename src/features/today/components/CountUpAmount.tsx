@@ -6,10 +6,12 @@ import Animated, {
   Easing,
   useReducedMotion,
 } from 'react-native-reanimated';
-import { Text, StyleSheet, type TextStyle } from 'react-native';
+import { TextInput, StyleSheet, type TextStyle } from 'react-native';
 import { typography, animation } from '@/ui/tokens';
 
-const AnimatedText = Animated.createAnimatedComponent(Text);
+// AnimatedTextInput works reliably on Android New Architecture (RN 0.86+)
+// where the `text` prop on AnimatedText no longer functions correctly.
+const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 interface Props {
   value: number;
@@ -41,13 +43,17 @@ export function CountUpAmount({
   const animatedProps = useAnimatedProps(() => {
     const displayed = animatedValue.value;
     const text = `${prefix}${displayed.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
-    return { text, children: undefined } as { text: string; children: undefined };
+    return { value: text };
   });
 
   return (
-    <AnimatedText
+    <AnimatedTextInput
       style={[styles.base, style]}
       animatedProps={animatedProps}
+      editable={false}
+      underlineColorAndroid="transparent"
+      caretHidden
+      selectTextOnFocus={false}
     />
   );
 }
@@ -57,5 +63,9 @@ const styles = StyleSheet.create({
     fontFamily: typography.serifFamily,
     fontVariant: ['tabular-nums'],
     includeFontPadding: false,
+    padding: 0,
+    margin: 0,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
   },
 });
