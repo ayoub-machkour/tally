@@ -20,7 +20,7 @@ function lerpColor(from: string, to: string, t: number): string {
   );
 }
 
-// ─── Mini bar chart (7 bars, rendered as Views) ───────────────────────────────
+// ─── Mini bar chart ───────────────────────────────────────────────────────────
 function MiniBarChart({ data }: { data: number[] }): React.ReactElement {
   let maxVal = 1;
   for (let i = 0; i < data.length; i++) {
@@ -34,10 +34,7 @@ function MiniBarChart({ data }: { data: number[] }): React.ReactElement {
         const h = Math.max(4, Math.round((v / maxVal) * BAR_H));
         const opacity = isLatest ? 1 : 0.25 + (v / maxVal) * 0.5;
         return (
-          <View
-            key={i}
-            style={[miniStyles.bar, { height: h, backgroundColor: '#FFFFFF', opacity }]}
-          />
+          <View key={i} style={[miniStyles.bar, { height: h, backgroundColor: '#FFFFFF', opacity }]} />
         );
       })}
     </View>
@@ -59,31 +56,38 @@ export function TodayHero(): React.ReactElement {
   const progressWidth = Math.min(progress, 100);
   const t = Math.min(1, Math.max(0, progress / 100));
 
-  // Gradient: light violet → red (readable on dark hero bg)
-  // accentDim (#9B80E8) → danger (#DC2626)
-  const budgetColor = lerpColor('#9B80E8', '#DC2626', t);
-  // Gradient fill color pair for the progress bar
-  const gradientStart = colors.accentDim;   // '#9B80E8'
-  const gradientEnd = budgetColor;
+  // Card background gradient: dark violet → dark red as budget fills
+  // heroTop: '#0F0C1A' → '#1A0505'   heroMid: '#1A1035' → '#2D0A0A'
+  const cardTop = lerpColor('#0F0C1A', '#1A0505', t);
+  const cardMid = lerpColor('#1A1035', '#2D0A0A', t);
+  // Orb tint: violet orb → red orb
+  const orbColor = lerpColor('#3D1F80', '#7D1010', t);
+
+  // Progress bar gradient: accent → danger
+  const progressBarEnd = lerpColor('#9B80E8', '#DC2626', t);
 
   return (
     <View style={styles.container}>
       <View style={styles.card}>
+        {/* Dynamic gradient background */}
         <LinearGradient
-          colors={[colors.heroTop, colors.heroMid]}
+          colors={[cardTop, cardMid]}
           style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
         />
-        <View style={[styles.orb, styles.orb1]} />
+
+        {/* Ambient orbs (tint shifts with budget) */}
+        <View style={[styles.orb, styles.orb1, { backgroundColor: orbColor }]} />
         <View style={[styles.orb, styles.orb2]} />
 
         {/* Main body */}
         <View style={styles.cardBody}>
           <View style={styles.leftCol}>
             <Animated.Text style={styles.spentLabel}>SPENT TODAY</Animated.Text>
+            {/* Text color always stays white */}
             <CountUpAmount
               value={todayTotal}
               prefix={currency}
-              style={[styles.heroAmount, { color: budgetColor }]}
+              style={styles.heroAmount}
               duration={0}
             />
             <Animated.Text style={styles.comfortText}>
@@ -102,13 +106,13 @@ export function TodayHero(): React.ReactElement {
         <View style={styles.progressArea}>
           <View style={styles.progressRow}>
             <Animated.Text style={styles.progressLabel}>This month</Animated.Text>
-            <Animated.Text style={[styles.progressLabel, { color: budgetColor }]}>
+            <Animated.Text style={styles.progressLabel}>
               {Math.round(progressWidth)}%
             </Animated.Text>
           </View>
           <View style={styles.progressTrack}>
             <LinearGradient
-              colors={[gradientStart, gradientEnd]}
+              colors={[colors.accentDim, progressBarEnd]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={[styles.progressFill, { width: `${progressWidth}%` as `${number}%` }]}
@@ -133,7 +137,7 @@ const styles = StyleSheet.create({
     ...shadows.hero,
   },
   orb: { position: 'absolute', borderRadius: 999, opacity: 0.4 },
-  orb1: { width: 180, height: 180, backgroundColor: colors.heroOrb1, top: -50, right: -30 },
+  orb1: { width: 180, height: 180, top: -50, right: -30 },
   orb2: { width: 120, height: 120, backgroundColor: colors.heroOrb2, bottom: -30, left: -20 },
   cardBody: {
     flexDirection: 'row',
@@ -154,6 +158,7 @@ const styles = StyleSheet.create({
   heroAmount: {
     fontFamily: typography.serifFamily,
     fontSize: 52,
+    color: colors.heroText,
     letterSpacing: -2,
     fontVariant: ['tabular-nums'],
     lineHeight: 52 * 1.05,
