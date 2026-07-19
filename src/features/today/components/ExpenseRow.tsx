@@ -1,5 +1,5 @@
 import React, { useRef, useCallback } from 'react';
-import { View, StyleSheet, Alert, Text } from 'react-native';
+import { View, StyleSheet, Alert, Text, Pressable } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
@@ -41,11 +41,11 @@ export function ExpenseRow({ expense }: Props): React.ReactElement {
   }, []);
 
   const renderRightActions = useCallback(() => (
-    <View style={styles.deleteAction}>
+    <Pressable style={styles.deleteAction} onPress={handleDelete}>
       <Text style={styles.trashIcon}>🗑</Text>
       <Text style={styles.deleteLabel}>Delete</Text>
-    </View>
-  ), []);
+    </Pressable>
+  ), [handleDelete]);
 
   const hour = new Date(expense.createdAt).toLocaleTimeString('en-US', {
     hour: 'numeric',
@@ -59,7 +59,6 @@ export function ExpenseRow({ expense }: Props): React.ReactElement {
         ref={swipeableRef}
         renderRightActions={renderRightActions}
         onSwipeableOpen={handleSwipeOpen}
-        onSwipeableRightOpen={handleDelete}
         overshootRight={false}
         friction={2}
         rightThreshold={60}

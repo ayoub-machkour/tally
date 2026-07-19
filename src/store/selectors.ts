@@ -34,11 +34,13 @@ export function useScrubberData(): DailyTotal[] {
   return useMemo(() => {
     const today = todayString();
     const month = selectedDate.slice(0, 7);
+    const currentMonth = today.slice(0, 7);
     const dates = datesInMonth(month);
-    // Descending: most recent date first (today at index 0 if current month)
-    return [...dates].reverse().map((date) => ({
+    // Ascending: oldest first, today at the end. For current month cut off future dates.
+    const visible = month === currentMonth ? dates.filter((d) => d <= today) : dates;
+    return visible.map((date) => ({
       date,
-      total: date <= today ? sumExpenses(filterByDate(expenses, date)) : 0,
+      total: sumExpenses(filterByDate(expenses, date)),
     }));
   }, [expenses, selectedDate]);
 }

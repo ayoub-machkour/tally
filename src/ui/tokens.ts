@@ -140,7 +140,7 @@ export const animation = {
   normal: 280,
   slow:   500,
   // Count-up
-  countUp: 800,
+  countUp: 300,
   // Draw-on-mount (charts)
   draw: 600,
   // Spring preset for button press / checkmark

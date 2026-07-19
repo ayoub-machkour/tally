@@ -15,7 +15,7 @@ import { colors, typography, spacing, radii } from '@/ui/tokens';
 const PILL_SIZE = 44;
 const PILL_GAP = 8;
 const ITEM_WIDTH = PILL_SIZE + PILL_GAP;
-const PADDING_START = spacing['4']; // 16px padding at start
+const PADDING_START = spacing['4'];
 
 export function DayScrubber(): React.ReactElement {
   const selectedDate = useExpenseStore((s) => s.selectedDate);
@@ -25,19 +25,15 @@ export function DayScrubber(): React.ReactElement {
   const hasScrolled = useRef(false);
   const today = todayString();
 
-  // Scroll so today is at the left edge once scrubData is ready
+  // Scroll so today (last item) is visible at the right edge on first load
   useEffect(() => {
     if (hasScrolled.current || scrubData.length === 0) return;
-    const idx = scrubData.findIndex((d) => d.date === today);
-    if (idx > 0) {
-      const timer = setTimeout(() => {
-        // x = idx * ITEM_WIDTH keeps the left padding visible before today's item
-        scrollRef.current?.scrollTo({ x: idx * ITEM_WIDTH, y: 0, animated: false });
-      }, 60);
-      hasScrolled.current = true;
-      return () => clearTimeout(timer);
-    }
-  }, [scrubData, today]);
+    hasScrolled.current = true;
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: false });
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [scrubData]);
 
   const handleSelect = useCallback(
     (date: string) => {
@@ -59,9 +55,10 @@ export function DayScrubber(): React.ReactElement {
       >
         {scrubData.map((item) => {
           const isSelected = item.date === selectedDate;
-          const isFuture = item.date > today;
+          const isToday = item.date === today;
           const dayLabel = shortDayLabel(item.date);
           const dayNum = item.date.split('-')[2];
+          const hasSpend = item.total > 0;
 
           return (
             <Pressable
@@ -69,21 +66,19 @@ export function DayScrubber(): React.ReactElement {
               style={[
                 styles.item,
                 isSelected && styles.itemSelected,
-                isFuture && styles.itemFuture,
               ]}
-              onPress={() => !isFuture && handleSelect(item.date)}
-              disabled={isFuture}
+              onPress={() => handleSelect(item.date)}
               accessibilityRole="button"
-              accessibilityLabel={`${item.date}${item.total > 0 ? ` — ${item.total.toFixed(2)}` : ''}`}
-              accessibilityState={{ selected: isSelected, disabled: isFuture }}
+              accessibilityLabel={`${item.date}${hasSpend ? ` — ${item.total.toFixed(2)}` : ''}`}
+              accessibilityState={{ selected: isSelected }}
               hitSlop={{ top: 4, bottom: 4, left: 2, right: 2 }}
             >
-              {/* Day letter (S M T W T F S) */}
+              {/* Day letter */}
               <Animated.Text
                 style={[
                   styles.dayLetter,
                   isSelected && styles.dayLetterActive,
-                  isFuture && styles.dayLetterFuture,
+                  isToday && !isSelected && styles.dayLetterToday,
                 ]}
               >
                 {dayLabel}
@@ -94,11 +89,21 @@ export function DayScrubber(): React.ReactElement {
                 style={[
                   styles.dayNum,
                   isSelected && styles.dayNumActive,
-                  isFuture && styles.dayNumFuture,
+                  isToday && !isSelected && styles.dayNumToday,
                 ]}
               >
                 {dayNum}
               </Animated.Text>
+
+              {/* Spend indicator line */}
+              {hasSpend && (
+                <View
+                  style={[
+                    styles.spendLine,
+                    isSelected && styles.spendLineSelected,
+                  ]}
+                />
+              )}
             </Pressable>
           );
         })}
@@ -128,14 +133,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: colors.line,
+    paddingBottom: 8,
   },
   itemSelected: {
     backgroundColor: colors.ink,
     borderColor: colors.ink,
-  },
-  itemFuture: {
-    backgroundColor: colors.surface,
-    borderColor: 'transparent',
   },
   dayLetter: {
     fontFamily: typography.sansMedium,
@@ -146,8 +148,8 @@ const styles = StyleSheet.create({
   dayLetterActive: {
     color: 'rgba(255,255,255,0.6)',
   },
-  dayLetterFuture: {
-    color: colors.line,
+  dayLetterToday: {
+    color: colors.accent,
   },
   dayNum: {
     fontFamily: typography.sansSemiBold,
@@ -158,7 +160,18 @@ const styles = StyleSheet.create({
   dayNumActive: {
     color: '#FFFFFF',
   },
-  dayNumFuture: {
-    color: colors.line,
+  dayNumToday: {
+    color: colors.accent,
+  },
+  spendLine: {
+    position: 'absolute',
+    bottom: 4,
+    width: 20,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: colors.accent,
+  },
+  spendLineSelected: {
+    backgroundColor: 'rgba(255,255,255,0.6)',
   },
 });
