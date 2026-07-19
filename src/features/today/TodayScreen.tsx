@@ -11,13 +11,22 @@ import { SettingsSheet } from '@/features/settings/SettingsSheet';
 import { Toast } from '@/ui/Toast';
 import { useSelectedDateExpenses } from '@/store/selectors';
 import { useExpenseStore } from '@/store/expenseStore';
-import { colors, typography, spacing, radii, shadows } from '@/ui/tokens';
+import { colors, typography, spacing } from '@/ui/tokens';
 import type { Expense } from '@/domain/types';
+
+function getTodayLabel(): string {
+  const d = new Date();
+  const day = d.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+  const month = d.toLocaleDateString('en-US', { month: 'long' }).toUpperCase();
+  return `${day}, ${month} ${d.getDate()}`;
+}
 
 export function TodayScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
-  const [addOpen, setAddOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const addSheetOpen = useExpenseStore((s) => s.addSheetOpen);
+  const closeAddSheet = useExpenseStore((s) => s.closeAddSheet);
   const dayExpenses = useSelectedDateExpenses();
   const toastMessage = useExpenseStore((s) => s.toastMessage);
   const toastVisible = useExpenseStore((s) => s.toastVisible);
@@ -25,7 +34,6 @@ export function TodayScreen(): React.ReactElement {
   const selectedDate = useExpenseStore((s) => s.selectedDate);
 
   const isNoSpendDay = dayExpenses.length === 0;
-  // A "true" no-spend day = past days with no expenses (not today with no expenses yet)
   const today = new Date().toISOString().slice(0, 10);
   const isPastNoSpend = selectedDate < today && isNoSpendDay;
 
@@ -36,12 +44,30 @@ export function TodayScreen(): React.ReactElement {
 
   const keyExtractor = useCallback((item: Expense) => item.id, []);
 
-  // Sort by time descending for display
   const sorted = [...dayExpenses].sort((a, b) => b.createdAt - a.createdAt);
+
+  const dateLabel = getTodayLabel();
 
   return (
     <View style={styles.container}>
-      {/* Main list with hero + scrubber as headers */}
+      {/* Fixed header: "tally" italic + date + settings gear */}
+      <View style={[styles.header, { paddingTop: insets.top + spacing['2'] }]}>
+        <View>
+          <Animated.Text style={styles.logoText}>tally</Animated.Text>
+          <Animated.Text style={styles.headerDate}>{dateLabel}</Animated.Text>
+        </View>
+        <Pressable
+          style={styles.settingsBtn}
+          onPress={() => setSettingsOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Open settings"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Animated.Text style={styles.settingsIcon}>⚙</Animated.Text>
+        </Pressable>
+      </View>
+
+      {/* Scrollable content */}
       <FlatList
         data={sorted}
         keyExtractor={keyExtractor}
@@ -50,6 +76,7 @@ export function TodayScreen(): React.ReactElement {
           <>
             <TodayHero />
             <DayScrubber />
+            <View style={{ height: spacing['3'] }} />
             {isNoSpendDay && (
               <View style={styles.emptyWrapper}>
                 <EmptyState isNoSpendDay={isPastNoSpend} />
@@ -58,38 +85,15 @@ export function TodayScreen(): React.ReactElement {
           </>
         }
         style={styles.list}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 130 }}
         showsVerticalScrollIndicator={false}
         bounces={true}
       />
 
-      {/* Top right: settings icon */}
-      <Pressable
-        style={[styles.settingsBtn, { top: insets.top + spacing['3'] }]}
-        onPress={() => setSettingsOpen(true)}
-        accessibilityRole="button"
-        accessibilityLabel="Open settings"
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Animated.Text style={styles.settingsIcon}>⚙</Animated.Text>
-      </Pressable>
-
-      {/* FAB — Add expense */}
-      <View style={[styles.fab, { bottom: insets.bottom + 90 }]}>
-        <Pressable
-          style={styles.fabBtn}
-          onPress={() => setAddOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Add expense"
-        >
-          <Animated.Text style={styles.fabIcon}>+</Animated.Text>
-        </Pressable>
-      </View>
-
-      {/* Bottom sheets */}
+      {/* Sheets */}
       <AddExpenseSheet
-        visible={addOpen}
-        onClose={() => setAddOpen(false)}
+        visible={addSheetOpen}
+        onClose={closeAddSheet}
       />
       <SettingsSheet
         visible={settingsOpen}
@@ -111,44 +115,43 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.paper,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: spacing['5'],
+    paddingBottom: spacing['2'],
+  },
+  logoText: {
+    fontFamily: typography.serifItalic,
+    fontSize: 34,
+    color: colors.ink,
+    letterSpacing: -1,
+    lineHeight: 38,
+  },
+  headerDate: {
+    fontFamily: typography.sansMedium,
+    fontSize: typography.size.xs,
+    color: colors.muted,
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  settingsBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing['1'],
+  },
+  settingsIcon: {
+    fontSize: 22,
+    color: colors.muted,
+  },
   list: {
     flex: 1,
   },
   emptyWrapper: {
     flex: 1,
-    minHeight: 300,
-  },
-  settingsBtn: {
-    position: 'absolute',
-    right: spacing['5'],
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  settingsIcon: {
-    fontSize: 22,
-    color: colors.heroText,
-  },
-  fab: {
-    position: 'absolute',
-    right: spacing['5'],
-    zIndex: 10,
-  },
-  fabBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadows.lg,
-  },
-  fabIcon: {
-    fontSize: 28,
-    color: '#FFFFFF',
-    lineHeight: 32,
-    fontFamily: typography.sansFamily,
+    minHeight: 260,
   },
 });

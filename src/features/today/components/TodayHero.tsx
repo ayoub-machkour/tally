@@ -1,24 +1,60 @@
 import React from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CountUpAmount } from './CountUpAmount';
-import { Sparkline } from './Sparkline';
 import { useSelectedDateTotal, useMonthProgress, useSparklineData } from '@/store/selectors';
 import { useExpenseStore } from '@/store/expenseStore';
 import { formatCurrencyShort } from '@/lib/currency';
-import { shortMonthDay } from '@/lib/dates';
-import { colors, typography, spacing } from '@/ui/tokens';
+import { colors, typography, spacing, shadows } from '@/ui/tokens';
 
-const absoluteFillStyles = { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0 };
+// ─── Mini bar chart (7 bars, rendered as Views) ───────────────────────────────
+function MiniBarChart({ data }: { data: number[] }): React.ReactElement {
+  let maxVal = 1;
+  for (let i = 0; i < data.length; i++) {
+    if (data[i] > maxVal) maxVal = data[i];
+  }
+  const BAR_H = 44;
+  return (
+    <View style={miniStyles.container}>
+      {data.map((v, i) => {
+        const isLatest = i === data.length - 1;
+        const h = Math.max(4, Math.round((v / maxVal) * BAR_H));
+        const opacity = isLatest ? 1 : 0.25 + (v / maxVal) * 0.5;
+        return (
+          <View
+            key={i}
+            style={[
+              miniStyles.bar,
+              {
+                height: h,
+                backgroundColor: '#FFFFFF',
+                opacity,
+              },
+            ]}
+          />
+        );
+      })}
+    </View>
+  );
+}
 
-const { width: SCREEN_W } = Dimensions.get('window');
+const miniStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    height: 44,
+    gap: 4,
+  },
+  bar: {
+    width: 7,
+    borderRadius: 4,
+  },
+});
 
+// ─── Hero card ────────────────────────────────────────────────────────────────
 export function TodayHero(): React.ReactElement {
-  const insets = useSafeAreaInsets();
   const currency = useExpenseStore((s) => s.settings.currency);
-  const selectedDate = useExpenseStore((s) => s.selectedDate);
   const todayTotal = useSelectedDateTotal();
   const { total: monthTotal, progress, comfortLine } = useMonthProgress();
   const sparkData = useSparklineData(7);
@@ -28,38 +64,47 @@ export function TodayHero(): React.ReactElement {
   const progressWidth = Math.min(progress, 100);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + spacing['4'] }]}>
-      <LinearGradient
-        colors={[colors.heroTop, colors.heroMid]}
-        style={absoluteFillStyles}
-      />
-      {/* Orbs */}
-      <View style={[styles.orb, styles.orb1]} />
-      <View style={[styles.orb, styles.orb2]} />
-
-      <View style={styles.inner}>
-        {/* Date label */}
-        <Animated.Text style={styles.dateLabel}>
-          {shortMonthDay(selectedDate)}
-        </Animated.Text>
-
-        {/* Big count-up amount */}
-        <CountUpAmount
-          value={todayTotal}
-          prefix={currency}
-          style={styles.heroAmount}
+    <View style={styles.container}>
+      <View style={styles.card}>
+        {/* Dark gradient background — overflow:hidden on card clips it */}
+        <LinearGradient
+          colors={[colors.heroTop, colors.heroMid]}
+          style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
         />
 
-        <Animated.Text style={styles.heroSub}>spent today</Animated.Text>
+        {/* Ambient orbs */}
+        <View style={[styles.orb, styles.orb1]} />
+        <View style={[styles.orb, styles.orb2]} />
 
-        {/* Progress bar */}
-        <View style={styles.progressSection}>
-          <View style={styles.progressRow}>
-            <Animated.Text style={styles.progressLabel}>
-              This month
+        {/* Main body: left column + right column */}
+        <View style={styles.cardBody}>
+          {/* Left: label, big amount, comfort line */}
+          <View style={styles.leftCol}>
+            <Animated.Text style={styles.spentLabel}>SPENT TODAY</Animated.Text>
+            <CountUpAmount
+              value={todayTotal}
+              prefix={currency}
+              style={styles.heroAmount}
+            />
+            <Animated.Text style={styles.comfortText}>
+              {formatCurrencyShort(monthTotal, currency)} of{' '}
+              {formatCurrencyShort(comfortLine, currency)} comfort
             </Animated.Text>
+          </View>
+
+          {/* Right: mini bar chart + label */}
+          <View style={styles.rightCol}>
+            <MiniBarChart data={sparkData} />
+            <Animated.Text style={styles.last7Label}>LAST 7 DAYS</Animated.Text>
+          </View>
+        </View>
+
+        {/* Progress bar at card bottom */}
+        <View style={styles.progressArea}>
+          <View style={styles.progressRow}>
+            <Animated.Text style={styles.progressLabel}>This month</Animated.Text>
             <Animated.Text style={[styles.progressLabel, isOverBudget && styles.overBudget]}>
-              {formatCurrencyShort(monthTotal, currency)} / {formatCurrencyShort(comfortLine, currency)}
+              {Math.round(progressWidth)}%
             </Animated.Text>
           </View>
           <View style={styles.progressTrack}>
@@ -71,17 +116,6 @@ export function TodayHero(): React.ReactElement {
             />
           </View>
         </View>
-
-        {/* Sparkline */}
-        <View style={styles.sparkRow}>
-          <Animated.Text style={styles.sparkLabel}>7-day</Animated.Text>
-          <Sparkline
-            data={sparkData}
-            width={SCREEN_W * 0.45}
-            height={28}
-            color={colors.accentDim}
-          />
-        </View>
       </View>
     </View>
   );
@@ -89,56 +123,82 @@ export function TodayHero(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.heroTop,
-    paddingBottom: spacing['6'],
+    paddingHorizontal: spacing['4'],
+    paddingTop: spacing['3'],
+    paddingBottom: spacing['2'],
+  },
+  card: {
+    borderRadius: 24,
     overflow: 'hidden',
+    backgroundColor: colors.heroTop,
+    ...shadows.hero,
   },
   orb: {
     position: 'absolute',
     borderRadius: 999,
-    opacity: 0.35,
+    opacity: 0.4,
   },
   orb1: {
-    width: SCREEN_W * 0.7,
-    height: SCREEN_W * 0.7,
+    width: 180,
+    height: 180,
     backgroundColor: colors.heroOrb1,
-    top: -SCREEN_W * 0.25,
-    right: -SCREEN_W * 0.2,
+    top: -50,
+    right: -30,
   },
   orb2: {
-    width: SCREEN_W * 0.5,
-    height: SCREEN_W * 0.5,
+    width: 120,
+    height: 120,
     backgroundColor: colors.heroOrb2,
-    bottom: -SCREEN_W * 0.1,
-    left: -SCREEN_W * 0.15,
+    bottom: -30,
+    left: -20,
   },
-  inner: {
-    paddingHorizontal: spacing['6'],
-    gap: spacing['3'],
+  cardBody: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing['5'],
+    paddingTop: spacing['5'],
+    paddingBottom: spacing['4'],
+    gap: spacing['4'],
+    alignItems: 'flex-end',
   },
-  dateLabel: {
+  leftCol: {
+    flex: 1,
+    gap: spacing['1'],
+  },
+  rightCol: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: spacing['2'],
+    paddingBottom: 2,
+  },
+  spentLabel: {
     fontFamily: typography.sansMedium,
-    fontSize: typography.size.sm,
+    fontSize: typography.size.xs,
     color: colors.heroMuted,
-    letterSpacing: 0.3,
+    letterSpacing: 1,
   },
   heroAmount: {
     fontFamily: typography.serifFamily,
-    fontSize: 56,
+    fontSize: 52,
     color: colors.heroText,
     letterSpacing: -2,
     fontVariant: ['tabular-nums'],
-    lineHeight: 56 * 1.05,
+    lineHeight: 52 * 1.05,
   },
-  heroSub: {
+  comfortText: {
     fontFamily: typography.sansFamily,
-    fontSize: typography.size.sm,
+    fontSize: typography.size.xs,
     color: colors.heroMuted,
-    marginTop: -spacing['2'],
   },
-  progressSection: {
+  last7Label: {
+    fontFamily: typography.sansMedium,
+    fontSize: 9,
+    color: colors.heroMuted,
+    letterSpacing: 0.8,
+  },
+  progressArea: {
+    paddingHorizontal: spacing['5'],
+    paddingBottom: spacing['5'],
     gap: spacing['2'],
-    marginTop: spacing['2'],
   },
   progressRow: {
     flexDirection: 'row',
@@ -162,17 +222,5 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 2,
-  },
-  sparkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing['2'],
-  },
-  sparkLabel: {
-    fontFamily: typography.sansMedium,
-    fontSize: typography.size.xs,
-    color: colors.heroMuted,
-    letterSpacing: 0.3,
   },
 });

@@ -11,7 +11,7 @@ import {
   computeSparkline,
   comfortLineProgress,
 } from '@/domain/insights';
-import { last14Days } from '@/lib/dates';
+import { datesInMonth, todayString } from '@/lib/dates';
 import type { DailyTotal } from '@/domain/types';
 
 // ─── Today tab selectors ──────────────────────────────────────────────────────
@@ -32,10 +32,13 @@ export function useScrubberData(): DailyTotal[] {
   const selectedDate = useExpenseStore((s) => s.selectedDate);
 
   return useMemo(() => {
-    const dates = last14Days(selectedDate);
-    return dates.map((date) => ({
+    const today = todayString();
+    const month = selectedDate.slice(0, 7);
+    const dates = datesInMonth(month);
+    // Descending: most recent date first (today at index 0 if current month)
+    return [...dates].reverse().map((date) => ({
       date,
-      total: sumExpenses(filterByDate(expenses, date)),
+      total: date <= today ? sumExpenses(filterByDate(expenses, date)) : 0,
     }));
   }, [expenses, selectedDate]);
 }

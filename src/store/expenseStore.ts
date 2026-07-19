@@ -19,6 +19,9 @@ interface ExpenseState {
   toastMessage: string;
   toastVisible: boolean;
 
+  // ── Add-expense sheet ─────────────────────────────────────────────────────
+  addSheetOpen: boolean;
+
   // ── Actions ───────────────────────────────────────────────────────────────
   hydrate: () => Promise<void>;
   addExpense: (expense: Expense) => Promise<void>;
@@ -28,6 +31,8 @@ interface ExpenseState {
   setSelectedMonth: (month: string) => void;
   showToast: (message: string) => void;
   hideToast: () => void;
+  openAddSheet: () => void;
+  closeAddSheet: () => void;
   eraseData: () => Promise<void>;
   loadSeedData: () => Promise<void>;
 }
@@ -42,6 +47,7 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
   hydrated: false,
   toastMessage: '',
   toastVisible: false,
+  addSheetOpen: false,
 
   // ── Hydrate on app start ───────────────────────────────────────────────────
   hydrate: async (): Promise<void> => {
@@ -90,6 +96,15 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
 
   hideToast: (): void => {
     set({ toastVisible: false });
+  },
+
+  // ── Add-expense sheet ──────────────────────────────────────────────────────
+  openAddSheet: (): void => {
+    set({ addSheetOpen: true });
+  },
+
+  closeAddSheet: (): void => {
+    set({ addSheetOpen: false });
   },
 
   // ── Nuclear option ─────────────────────────────────────────────────────────

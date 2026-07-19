@@ -123,16 +123,23 @@ export function ExpenseRow({ expense }: Props): React.ReactElement {
 
 const styles = StyleSheet.create({
   wrapper: {
-    backgroundColor: colors.paper,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
+    marginHorizontal: spacing['4'],
+    marginBottom: spacing['2'],
+    backgroundColor: '#FFFFFF',
+    borderRadius: radii.md,
+    overflow: 'hidden',
+    shadowColor: '#17151F',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing['5'],
+    paddingHorizontal: spacing['4'],
     paddingVertical: spacing['4'],
-    gap: spacing['4'],
+    gap: spacing['3'],
     minHeight: 64,
   },
   catDot: {

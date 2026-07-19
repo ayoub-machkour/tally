@@ -2,10 +2,10 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { StyleSheet, View, Pressable } from 'react-native';
+import { StyleSheet, View, Pressable, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useExpenseStore } from '@/store/expenseStore';
-import { colors, typography, spacing } from '@/ui/tokens';
+import { colors, typography, spacing, radii, shadows } from '@/ui/tokens';
 
 // Screens
 import { OnboardingStep0Screen } from '@/features/onboarding/components/Step0Screen';
@@ -49,46 +49,78 @@ function TabBar({
   navigation: { emit: (e: { type: string; target: string; canPreventDefault: boolean }) => { defaultPrevented: boolean }; navigate: (name: string) => void };
 }): React.ReactElement {
   const insets = useSafeAreaInsets();
-  const tabs = [
-    { name: 'Today', label: 'Today' },
-    { name: 'Months', label: 'Months' },
-  ];
+  const openAddSheet = useExpenseStore((s) => s.openAddSheet);
+
+  const navigateTo = (name: string, index: number) => {
+    const route = state.routes[index];
+    const event = navigation.emit({
+      type: 'tabPress',
+      target: route.key,
+      canPreventDefault: true,
+    });
+    if (state.index !== index && !event.defaultPrevented) {
+      navigation.navigate(name);
+    }
+  };
+
+  const handleAddPress = () => {
+    openAddSheet();
+    // Navigate to Today so AddExpenseSheet (in TodayScreen) can render
+    if (state.index !== 0) {
+      navigation.navigate('Today');
+    }
+  };
+
+  const todayActive = state.index === 0;
+  const monthsActive = state.index === 1;
 
   return (
-    <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, spacing['4']) }]}>
-      {tabs.map((tab, index) => {
-        const focused = state.index === index;
-        const route = state.routes[index];
-        return (
-          <Pressable
-            key={tab.name}
-            onPress={() => {
-              const event = navigation.emit({
-                type: 'tabPress',
-                target: route.key,
-                canPreventDefault: true,
-              });
-              if (!focused && !event.defaultPrevented) {
-                navigation.navigate(tab.name);
-              }
-            }}
-            style={styles.tabItem}
-            accessibilityRole="tab"
-            accessibilityLabel={tab.label}
-            accessibilityState={{ selected: focused }}
-            hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
-          >
-            <View style={[styles.tabPill, focused && styles.tabPillActive]}>
-              <View style={[styles.tabDot, focused && styles.tabDotActive]} />
-            </View>
-            <View>
-              <View>
-                {/* Label is rendered via Animated.Text for typecheck compat */}
-              </View>
-            </View>
-          </Pressable>
-        );
-      })}
+    <View
+      style={[
+        styles.tabBarOuter,
+        { paddingBottom: Math.max(insets.bottom + spacing['2'], spacing['5']) },
+      ]}
+      pointerEvents="box-none"
+    >
+      <View style={styles.tabBarPill}>
+        {/* Today tab */}
+        <Pressable
+          style={[styles.tabBtn, todayActive && styles.tabBtnActive]}
+          onPress={() => navigateTo('Today', 0)}
+          accessibilityRole="tab"
+          accessibilityLabel="Today"
+          accessibilityState={{ selected: todayActive }}
+          hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+        >
+          <Text style={[styles.tabBtnLabel, todayActive && styles.tabBtnLabelActive]}>
+            Today
+          </Text>
+        </Pressable>
+
+        {/* Add expense button (center) */}
+        <Pressable
+          style={styles.addBtn}
+          onPress={handleAddPress}
+          accessibilityRole="button"
+          accessibilityLabel="Add expense"
+        >
+          <Text style={styles.addBtnLabel}>+</Text>
+        </Pressable>
+
+        {/* Months tab */}
+        <Pressable
+          style={[styles.tabBtn, monthsActive && styles.tabBtnActive]}
+          onPress={() => navigateTo('Months', 1)}
+          accessibilityRole="tab"
+          accessibilityLabel="Months"
+          accessibilityState={{ selected: monthsActive }}
+          hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+        >
+          <Text style={[styles.tabBtnLabel, monthsActive && styles.tabBtnLabelActive]}>
+            Months
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -98,7 +130,6 @@ function MainNavigator(): React.ReactElement {
     <MainTab.Navigator
       screenOptions={{ headerShown: false }}
       tabBar={(props) => {
-        // Type cast needed due to RN navigation complex types
         const p = props as Parameters<typeof TabBar>[0];
         return <TabBar {...p} />;
       }}
@@ -133,46 +164,60 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.heroTop,
   },
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: colors.paper,
-    paddingTop: spacing['3'],
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-  },
-  tabItem: {
-    flex: 1,
+  // ── Floating pill tab bar ───────────────────────────────────────────────────
+  tabBarOuter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     alignItems: 'center',
-    gap: spacing['1'],
+  },
+  tabBarPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.paper,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing['2'],
+    paddingVertical: spacing['2'],
+    gap: spacing['2'],
+    ...shadows.lg,
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+  },
+  tabBtn: {
+    paddingHorizontal: spacing['5'],
+    paddingVertical: spacing['3'],
+    borderRadius: radii.full,
     minHeight: 44,
     justifyContent: 'center',
-  },
-  tabPill: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.line,
     alignItems: 'center',
-    justifyContent: 'center',
+    minWidth: 84,
   },
-  tabPillActive: {
-    backgroundColor: colors.accent,
+  tabBtnActive: {
+    backgroundColor: colors.ink,
   },
-  tabDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.muted,
-  },
-  tabDotActive: {
-    backgroundColor: colors.paper,
-  },
-  tabLabel: {
+  tabBtnLabel: {
     fontFamily: typography.sansMedium,
-    fontSize: typography.size.xs,
+    fontSize: typography.size.sm,
     color: colors.muted,
   },
-  tabLabelActive: {
-    color: colors.accent,
+  tabBtnLabelActive: {
+    color: '#FFFFFF',
+  },
+  addBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.md,
+  },
+  addBtnLabel: {
+    fontSize: 28,
+    color: '#FFFFFF',
+    fontFamily: typography.sansFamily,
+    lineHeight: 32,
+    marginTop: -2,
   },
 });

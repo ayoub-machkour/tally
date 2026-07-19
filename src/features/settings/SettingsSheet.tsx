@@ -41,7 +41,6 @@ export function SettingsSheet({ visible, onClose }: Props): React.ReactElement {
   const settings = useExpenseStore((s) => s.settings);
   const updateSettings = useExpenseStore((s) => s.updateSettings);
   const eraseData = useExpenseStore((s) => s.eraseData);
-  const loadSeedData = useExpenseStore((s) => s.loadSeedData);
 
   const [currency, setCurrency] = useState<CurrencySymbol>(settings.currency);
   const [comfortLine, setComfortLine] = useState(settings.comfortLine);
@@ -89,11 +88,6 @@ export function SettingsSheet({ visible, onClose }: Props): React.ReactElement {
     await updateSettings({ onboarded: false });
     onClose();
   }, [updateSettings, onClose]);
-
-  const handleLoadSeed = useCallback(async () => {
-    await loadSeedData();
-    onClose();
-  }, [loadSeedData, onClose]);
 
   return (
     <Modal
@@ -187,15 +181,6 @@ export function SettingsSheet({ visible, onClose }: Props): React.ReactElement {
             accessibilityLabel="Replay onboarding"
           >
             <Animated.Text style={styles.secondaryLabel}>Replay onboarding</Animated.Text>
-          </Pressable>
-
-          <Pressable
-            style={styles.secondaryBtn}
-            onPress={handleLoadSeed}
-            accessibilityRole="button"
-            accessibilityLabel="Load demo data"
-          >
-            <Animated.Text style={styles.secondaryLabel}>Load demo data</Animated.Text>
           </Pressable>
 
           <Pressable
