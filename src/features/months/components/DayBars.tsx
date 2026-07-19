@@ -1,61 +1,18 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, Dimensions, Pressable } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withDelay,
-  withTiming,
-  Easing,
-  useReducedMotion,
-} from 'react-native-reanimated';
-import { colors, typography, spacing, radii, animation } from '@/ui/tokens';
+import React, { useState, useCallback } from 'react';
+import { View, StyleSheet } from 'react-native';
+import Animated from 'react-native-reanimated';
+import Svg, {
+  Path,
+  Circle,
+  Defs,
+  LinearGradient as SvgGradient,
+  Stop,
+} from 'react-native-svg';
+import { colors, typography, spacing, radii } from '@/ui/tokens';
 import { formatCurrency } from '@/lib/currency';
-import type { DailyTotal } from '@/domain/types';
-import type { CurrencySymbol } from '@/domain/types';
+import type { DailyTotal, CurrencySymbol } from '@/domain/types';
 
-const { width: SCREEN_W } = Dimensions.get('window');
-const CHART_H = 80;
-const CHART_PAD = 24;
-const BAR_GAP = 1.5;
-
-interface BarProps {
-  value: number;
-  maxValue: number;
-  index: number;
-  isPeak: boolean;
-  isSelected: boolean;
-  barWidth: number;
-  onPress: () => void;
-}
-
-function Bar({ value, maxValue, index, isPeak, isSelected, barWidth, onPress }: BarProps): React.ReactElement {
-  const height = useSharedValue(0);
-  const reducedMotion = useReducedMotion();
-
-  const targetH = maxValue > 0 ? Math.max(2, (value / maxValue) * CHART_H) : 0;
-
-  useEffect(() => {
-    const delay = reducedMotion ? 0 : index * 12;
-    const dur = reducedMotion ? 0 : animation.draw;
-    height.value = withDelay(delay, withTiming(targetH, { duration: dur, easing: Easing.out(Easing.cubic) }));
-  }, [targetH, index, reducedMotion, height]);
-
-  const barStyle = useAnimatedStyle(() => ({
-    height: height.value,
-    backgroundColor: isSelected ? colors.accent : (isPeak ? colors.accent : colors.accentDim),
-    opacity: isSelected ? 1 : (isPeak ? 1 : 0.45),
-  }));
-
-  return (
-    <Pressable
-      style={[styles.barWrapper, { width: barWidth }]}
-      onPress={onPress}
-      hitSlop={{ top: 4, bottom: 0, left: 0, right: 0 }}
-    >
-      <Animated.View style={[styles.bar, barStyle, { width: barWidth - BAR_GAP, borderRadius: Math.max(2, barWidth / 3) }]} />
-    </Pressable>
-  );
-}
+const CHART_H = 90;
 
 interface Props {
   dailyTotals: DailyTotal[];
@@ -65,20 +22,45 @@ interface Props {
 
 export function DayBars({ dailyTotals, peakDate, currency }: Props): React.ReactElement {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const maxValue = Math.max(...dailyTotals.map((d) => d.total), 1);
-  const count = dailyTotals.length;
-  const availableW = SCREEN_W - CHART_PAD * 2;
-  const barWidth = availableW / Math.max(count, 1);
+  const [chartWidth, setChartWidth] = useState(0);
 
   const handlePress = useCallback((i: number) => {
     setSelectedIndex((prev) => (prev === i ? null : i));
   }, []);
 
   const selected = selectedIndex !== null ? dailyTotals[selectedIndex] : null;
+  const count = dailyTotals.length;
+  const maxValue = Math.max(...dailyTotals.map((d) => d.total), 1);
+
+  // Compute (x, y) for each data point once chartWidth is known
+  const pts =
+    chartWidth > 0 && count > 0
+      ? dailyTotals.map((d, i) => {
+          const x = count === 1 ? chartWidth / 2 : (i / (count - 1)) * chartWidth;
+          const ratio = d.total / maxValue;
+          const y = CHART_H - Math.max(d.total > 0 ? 10 : 0, ratio * (CHART_H - 10));
+          return { x, y, ...d };
+        })
+      : [];
+
+  const linePath =
+    pts.length > 0
+      ? pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ')
+      : '';
+
+  const areaPath =
+    pts.length > 0
+      ? [
+          `M ${pts[0].x.toFixed(1)} ${CHART_H}`,
+          ...pts.map((p) => `L ${p.x.toFixed(1)} ${p.y.toFixed(1)}`),
+          `L ${pts[count - 1].x.toFixed(1)} ${CHART_H}`,
+          'Z',
+        ].join(' ')
+      : '';
 
   return (
     <View style={styles.container}>
-      {/* Info chip for selected bar */}
+      {/* Info chip */}
       {selected ? (
         <View style={styles.infoChip}>
           <Animated.Text style={styles.infoDate}>
@@ -90,39 +72,90 @@ export function DayBars({ dailyTotals, peakDate, currency }: Props): React.React
         </View>
       ) : (
         <View style={styles.infoChipPlaceholder}>
-          <Animated.Text style={styles.infoHint}>Tap a bar to see details</Animated.Text>
+          <Animated.Text style={styles.infoHint}>Tap a point to see details</Animated.Text>
         </View>
       )}
 
-      <View style={[styles.chartArea, { height: CHART_H }]}>
-        {dailyTotals.map((d, i) => (
-          <Bar
-            key={d.date}
-            value={d.total}
-            maxValue={maxValue}
-            index={i}
-            isPeak={d.date === peakDate}
-            isSelected={i === selectedIndex}
-            barWidth={barWidth}
-            onPress={() => handlePress(i)}
-          />
-        ))}
-      </View>
-      {/* X-axis: show day numbers every 5 */}
-      <View style={styles.xAxis}>
-        {dailyTotals.map((d, i) => {
-          const dayNum = parseInt(d.date.split('-')[2], 10);
-          const showLabel = dayNum === 1 || dayNum % 5 === 0;
-          return (
-            <View key={d.date} style={{ width: barWidth, alignItems: 'center' }}>
-              {showLabel && (
-                <Animated.Text style={[styles.xLabel, i === selectedIndex && styles.xLabelActive]}>
-                  {dayNum}
-                </Animated.Text>
-              )}
+      {/* Chart + x-axis */}
+      <View
+        style={styles.chartWrapper}
+        onLayout={(e) => setChartWidth(e.nativeEvent.layout.width)}
+      >
+        {chartWidth > 0 && pts.length > 0 && (
+          <>
+            <Svg width={chartWidth} height={CHART_H}>
+              <Defs>
+                <SvgGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={colors.accent} stopOpacity="0.28" />
+                  <Stop offset="1" stopColor={colors.accent} stopOpacity="0" />
+                </SvgGradient>
+              </Defs>
+
+              {/* Gradient fill */}
+              <Path d={areaPath} fill="url(#areaFill)" />
+
+              {/* Line */}
+              <Path
+                d={linePath}
+                stroke={colors.accent}
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                fill="none"
+              />
+
+              {/* Visible dots */}
+              {pts.map((p, i) => {
+                const isSel = i === selectedIndex;
+                const isPeak = p.date === peakDate;
+                return (
+                  <Circle
+                    key={`dot-${p.date}`}
+                    cx={p.x}
+                    cy={p.y}
+                    r={isSel ? 5.5 : isPeak ? 4.5 : 3}
+                    fill={isSel || isPeak ? colors.accent : colors.accentDim}
+                    stroke={isSel ? '#FFFFFF' : 'none'}
+                    strokeWidth={2}
+                  />
+                );
+              })}
+
+              {/* Invisible larger touch targets */}
+              {pts.map((p, i) => (
+                <Circle
+                  key={`touch-${p.date}`}
+                  cx={p.x}
+                  cy={p.y}
+                  r={14}
+                  fill="transparent"
+                  onPress={() => handlePress(i)}
+                />
+              ))}
+            </Svg>
+
+            {/* X-axis labels */}
+            <View style={[styles.xAxis, { width: chartWidth }]}>
+              {pts.map((p, i) => {
+                const dayNum = parseInt(p.date.split('-')[2], 10);
+                const show = dayNum === 1 || dayNum % 5 === 0;
+                if (!show) return null;
+                return (
+                  <View
+                    key={p.date}
+                    style={[styles.xLabelWrapper, { left: p.x - 10 }]}
+                  >
+                    <Animated.Text
+                      style={[styles.xLabel, i === selectedIndex && styles.xLabelActive]}
+                    >
+                      {dayNum}
+                    </Animated.Text>
+                  </View>
+                );
+              })}
             </View>
-          );
-        })}
+          </>
+        )}
       </View>
     </View>
   );
@@ -130,7 +163,6 @@ export function DayBars({ dailyTotals, peakDate, currency }: Props): React.React
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: CHART_PAD,
     gap: spacing['2'],
   },
   infoChip: {
@@ -164,21 +196,18 @@ const styles = StyleSheet.create({
     fontSize: typography.size.xs,
     color: colors.muted,
   },
-  chartArea: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  barWrapper: {
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    height: CHART_H,
-  },
-  bar: {
-    minHeight: 2,
+  chartWrapper: {
+    width: '100%',
   },
   xAxis: {
-    flexDirection: 'row',
+    position: 'relative',
+    height: 16,
     marginTop: 2,
+  },
+  xLabelWrapper: {
+    position: 'absolute',
+    width: 20,
+    alignItems: 'center',
   },
   xLabel: {
     fontFamily: typography.sansFamily,

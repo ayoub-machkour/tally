@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StyleSheet, View, Pressable, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useExpenseStore } from '@/store/expenseStore';
+import { todayString } from '@/lib/dates';
 import { colors, typography, spacing, radii, shadows } from '@/ui/tokens';
 
 // Screens
@@ -50,6 +51,7 @@ function TabBar({
 }): React.ReactElement {
   const insets = useSafeAreaInsets();
   const openAddSheet = useExpenseStore((s) => s.openAddSheet);
+  const setSelectedDate = useExpenseStore((s) => s.setSelectedDate);
 
   const navigateTo = (name: string, index: number) => {
     const route = state.routes[index];
@@ -86,7 +88,7 @@ function TabBar({
         {/* Today tab */}
         <Pressable
           style={[styles.tabBtn, todayActive && styles.tabBtnActive]}
-          onPress={() => navigateTo('Today', 0)}
+          onPress={() => { setSelectedDate(todayString()); navigateTo('Today', 0); }}
           accessibilityRole="tab"
           accessibilityLabel="Today"
           accessibilityState={{ selected: todayActive }}

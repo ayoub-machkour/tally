@@ -30,7 +30,7 @@ export function CountUpAmount({
   const reducedMotion = useReducedMotion();
 
   useEffect(() => {
-    if (reducedMotion) {
+    if (reducedMotion || duration === 0) {
       animatedValue.value = value;
     } else {
       animatedValue.value = withTiming(value, {

@@ -23,7 +23,7 @@ export interface Expense {
   createdAt: number;
 }
 
-export type CurrencySymbol = '$' | '€' | '£' | '₹';
+export type CurrencySymbol = '$' | '€' | '£' | '₹' | 'DH';
 
 export interface Settings {
   currency: CurrencySymbol;

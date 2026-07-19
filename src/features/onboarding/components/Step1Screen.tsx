@@ -22,10 +22,11 @@ const absoluteFillStyles = { position: 'absolute' as const, top: 0, left: 0, rig
 import type { CurrencySymbol } from '@/domain/types';
 
 const CURRENCIES: { symbol: CurrencySymbol; label: string; flag: string }[] = [
-  { symbol: '$', label: 'USD',  flag: '🇺🇸' },
-  { symbol: '€', label: 'EUR',  flag: '🇪🇺' },
-  { symbol: '£', label: 'GBP',  flag: '🇬🇧' },
-  { symbol: '₹', label: 'INR',  flag: '🇮🇳' },
+  { symbol: '$',  label: 'USD', flag: '🇺🇸' },
+  { symbol: '€',  label: 'EUR', flag: '🇪🇺' },
+  { symbol: '£',  label: 'GBP', flag: '🇬🇧' },
+  { symbol: '₹',  label: 'INR', flag: '🇮🇳' },
+  { symbol: 'DH', label: 'MAD', flag: '🇲🇦' },
 ];
 
 const COMFORT_MIN = 100;
